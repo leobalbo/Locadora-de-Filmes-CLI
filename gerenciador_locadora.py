@@ -1,6 +1,6 @@
 import uuid
 import datetime
-from linkedlist import DoublyLinkedList, Node
+from linkedlist import DoublyLinkedList, DoublyNode
 
 def gerar_id_unico():
     return str(uuid.uuid4().hex)[:4]
@@ -78,7 +78,7 @@ class GerenciadorLocadora:
             print(f"ERRO ao validar dados do filme: {e}")
             return None
         
-        novo_no_filme_obj = Node(dados_filme)
+        novo_no_filme_obj = DoublyNode(dados_filme)
         self.catalogo_filmes_dll.add_last(novo_no_filme_obj)
         
         no_filme_adicionado_na_dll = self.catalogo_filmes_dll.tail
