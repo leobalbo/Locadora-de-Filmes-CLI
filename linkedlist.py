@@ -57,6 +57,15 @@ class LinkedList:
                 node.next = Node(data=element)
                 node = node.next
 
+
+    def __len__(self):
+        count = 0
+        node = self.head
+        while node:
+            count += 1
+            node = node.next
+        return count
+
     def __iter__(self):
         """
         Permite a iteração sobre os nós da lista encadeada.
@@ -203,6 +212,14 @@ class LinkedList:
 
         # Se o nó não for encontrado na lista, levanta uma exceção.
         raise Exception(f"O nó {node} não foi encontrado na lista.")
+    
+    def popleft(self):
+        """Remove e retorna os dados do primeiro nó da lista."""
+        if self.head is None:
+            raise Exception("A lista está vazia.")
+        data = self.head.data
+        self.head = self.head.next
+        return data
 
 class DoublyNode:
     def __init__(self, data, prev = None, next = None):

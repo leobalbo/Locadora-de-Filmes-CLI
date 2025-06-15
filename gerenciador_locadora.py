@@ -1,23 +1,27 @@
 import uuid
 import datetime
-from linkedlist import DoublyLinkedList, DoublyNode
+from linkedlist import DoublyLinkedList, DoublyNode, LinkedList, Node
 
 def gerar_id_unico():
     return str(uuid.uuid4().hex)[:4]
 
-def criar_payload_filme(titulo: str, ano: int, diretor: str, generos: set, atores: list) -> dict:
+def criar_payload_filme(titulo: str, ano: int, diretor: str, generos: set, atores: list, data_lancamento_obj: datetime.date) -> dict:
     if not isinstance(titulo, str) or not titulo.strip():
         raise ValueError("O título do filme não pode ser vazio.")
-    if not isinstance(ano, int) or not (1820 < ano < 2050):
-        raise ValueError("Ano de lançamento inválido.")
     if not isinstance(diretor, str) or not diretor.strip():
         diretor = "Desconhecido"
-    if not isinstance(generos, set): generos = set(generos)
-    if not isinstance(atores, list): atores = list(atores)
+        
     return {
-        'id': gerar_id_unico(), 'titulo': titulo, 'ano': ano, 'diretor': diretor,
-        'generos': generos, 'atores': atores, 'status': 'disponivel',
-        'id_cliente_alugou': None, 'data_aluguel': None
+        'id': gerar_id_unico(),
+        'titulo': titulo,
+        'ano': ano,
+        'diretor': diretor,
+        'generos': generos,
+        'atores': atores,
+        'status': 'disponivel',
+        'id_cliente_alugou': None,
+        'data_aluguel': None,
+        'data_lancamento': data_lancamento_obj
     }
 
 def criar_payload_cliente(nome: str, contato: str) -> dict:
@@ -31,11 +35,14 @@ def criar_payload_cliente(nome: str, contato: str) -> dict:
 class GerenciadorLocadora:
     def __init__(self):
         self.catalogo_filmes_dll = DoublyLinkedList()
+        self.lancamentos_futuros_fila = LinkedList() 
+        
         self.filmes_por_id_idx = {}
         self.generos_para_filmes_idx = {}
         self.atores_para_filmes_idx = {}
         self.diretores_para_filmes_idx = {}
         self.clientes_cadastrados = {}
+        self.reservas_lancamentos_idx = {}
 
     def _adicionar_filme_aos_indices(self, dados_filme: dict):
         id_filme = dados_filme['id']
@@ -67,26 +74,55 @@ class GerenciadorLocadora:
                 self.diretores_para_filmes_idx[chave_diretor].remove(id_filme)
                 if not self.diretores_para_filmes_idx[chave_diretor]: del self.diretores_para_filmes_idx[chave_diretor]
 
-    def adicionar_filme_catalogo(self, titulo: str, ano: int, diretor: str, generos: set, atores: list) -> dict | None:
+    def adicionar_filme_catalogo(self, titulo: str, diretor: str, generos: set, atores: list, data_lancamento: str) -> dict | None:
+        hoje = datetime.date.today()
         try:
+            data_lancamento_date = datetime.datetime.strptime(data_lancamento, "%d-%m-%Y").date()
+            ano = data_lancamento_date.year
+
             for no_existente in self.catalogo_filmes_dll:
                 if no_existente.data['titulo'].lower() == titulo.lower() and no_existente.data['ano'] == ano:
-                    print(f"ERRO: Filme '{titulo}' ({ano}) já existe no catálogo.")
+                    print(f"ERRO: Filme '{titulo}' ({ano}) já existe no catálogo principal.")
                     return None
-            dados_filme = criar_payload_filme(titulo, ano, diretor, generos, atores)
+
+            for no_lancamento in self.lancamentos_futuros_fila:
+                if no_lancamento.data['titulo'].lower() == titulo.lower() and no_lancamento.data['ano'] == ano:
+                    print(f"ERRO: Filme '{titulo}' ({ano}) já está agendado como lançamento.")
+                    return None
+
+            dados_filme = criar_payload_filme(titulo, ano, diretor, generos, atores, data_lancamento_date)
+
+            if dados_filme['data_lancamento'] > hoje:
+                dados_filme['status'] = 'em breve'
+                self.lancamentos_futuros_fila.add_last(Node(dados_filme))
+                self.filmes_por_id_idx[dados_filme['id']] = Node(dados_filme)
+                print(f"SUCESSO: Filme '{dados_filme['titulo']}' agendado para lançamento em {dados_filme['data_lancamento'].strftime('%d/%m/%Y')}")
+            else:
+                novo_no_filme_obj = DoublyNode(dados_filme)
+                self.catalogo_filmes_dll.add_last(novo_no_filme_obj)
+                self.filmes_por_id_idx[dados_filme['id']] = self.catalogo_filmes_dll.tail
+                self._adicionar_filme_aos_indices(dados_filme)
+                print(f"SUCESSO: Filme '{dados_filme['titulo']}' adicionado ao catálogo com ID: {dados_filme['id']}")
+
+            return dados_filme
+
         except ValueError as e:
             print(f"ERRO ao validar dados do filme: {e}")
             return None
+
+    def visualizar_lancamentos_futuros(self):
+        print("\n--- Próximos Lançamentos Agendados ---")
+        if self.lancamentos_futuros_fila.head is None:
+            print("Nenhum lançamento futuro agendado no momento.")
+            return
         
-        novo_no_filme_obj = DoublyNode(dados_filme)
-        self.catalogo_filmes_dll.add_last(novo_no_filme_obj)
-        
-        no_filme_adicionado_na_dll = self.catalogo_filmes_dll.tail
-        self.filmes_por_id_idx[dados_filme['id']] = no_filme_adicionado_na_dll
-        
-        self._adicionar_filme_aos_indices(dados_filme)
-        print(f"SUCESSO: Filme '{dados_filme['titulo']}' adicionado ao catálogo com ID: {dados_filme['id']}")
-        return dados_filme
+        for no_filme in self.lancamentos_futuros_fila:
+            filme = no_filme.data
+            data_lanc_str = filme['data_lancamento'].strftime('%d/%m/%Y')
+            reservas = self.reservas_lancamentos_idx.get(filme['id'], set())
+            print(f"- Título: {filme['titulo']} ({filme['ano']}) - Lançamento: {data_lanc_str}")
+            print(f"  ID: {filme['id']} | Reservas: {len(reservas)} cliente(s)")
+            print("-" * 15)
 
     def buscar_filme_por_id(self, id_filme: str) -> dict | None:
         no_filme = self.filmes_por_id_idx.get(id_filme)
@@ -106,7 +142,9 @@ class GerenciadorLocadora:
                 status_str += f" (Alugado por: {cliente_nome} em {filme['data_aluguel']})"
         
             print(f"   Titulo: {filme.get('titulo', 'N/A')} ({filme.get('ano', 'N/A')})  ID: {filme.get('id')}")
-            print(f"   Ano: {filme.get('Ano', 'N/A')}")
+            data_lanc_obj = filme.get('data_lancamento')
+            if data_lanc_obj:
+                print(f"   Lançamento: {data_lanc_obj.strftime('%d/%m/%Y')}")
             print(f"   Diretor: {filme.get('diretor', 'N/A')}")
             print(f"   Gêneros: {', '.join(filme.get('generos', [])) if filme.get('generos') else 'N/A'}")
             print(f"   Atores: {', '.join(filme.get('atores', [])) if filme.get('atores') else 'N/A'}")
@@ -136,21 +174,38 @@ class GerenciadorLocadora:
         if not no_a_remover_ref:
             print(f"ERRO: Filme com ID '{id_filme}' não encontrado.")
             return False
-        if no_a_remover_ref.data['status'] == 'alugado':
-            print(f"ERRO: Filme '{no_a_remover_ref.data['titulo']}' está atualmente alugado e não pode ser removido.")
+        
+        dados_filme = no_a_remover_ref.data
+        if dados_filme['status'] == 'alugado':
+            print(f"ERRO: Filme '{dados_filme['titulo']}' está atualmente alugado e não pode ser removido.")
             return False
+        
+        if dados_filme['status'] == 'em breve':
+            lista_temporaria = LinkedList()
+            removido = False
+            while self.lancamentos_futuros_fila.head is not None:
+                item = self.lancamentos_futuros_fila.popleft()
+                if item['id'] != id_filme:
+                    lista_temporaria.add_last(Node(item))
+                else:
+                    removido = True
+            self.lancamentos_futuros_fila = lista_temporaria
+            if removido:
+                 print(f"SUCESSO: Lançamento futuro '{dados_filme['titulo']}' removido da agenda.")
+        else:
+            try:
+                self.catalogo_filmes_dll.remove(no_a_remover_ref)
+                self._remover_filme_dos_indices(dados_filme)
+                print(f"SUCESSO: Filme '{dados_filme['titulo']}' removido do catálogo.")
+            except Exception as e:
+                print(f"ERRO ao tentar remover o filme da DLL: {e}")
+                return False
 
-        dados_filme_removido = no_a_remover_ref.data
-        try:
-            self.catalogo_filmes_dll.remove(no_a_remover_ref)
+        del self.filmes_por_id_idx[id_filme]
+        if id_filme in self.reservas_lancamentos_idx:
+            del self.reservas_lancamentos_idx[id_filme]
             
-            del self.filmes_por_id_idx[id_filme]
-            self._remover_filme_dos_indices(dados_filme_removido)
-            print(f"SUCESSO: Filme '{dados_filme_removido['titulo']}' removido do catálogo.")
-            return True
-        except Exception as e:
-            print(f"ERRO ao tentar remover o filme da DLL: {e}")
-            return False
+        return True
 
     def adicionar_cliente(self, nome: str, contato: str) -> dict | None:
         try:
@@ -256,3 +311,22 @@ class GerenciadorLocadora:
             print(f"- Filme: {titulo_filme} (ID: {id_filme})")
             print(f"  Alugado em: {data_aluguel}, Devolvido em: {devolucao_str}")
             print("-" * 15)
+
+    def reservar_lancamento(self, id_filme: str, id_cliente: str) -> bool:
+        filme = self.buscar_filme_por_id(id_filme)
+        cliente = self.clientes_cadastrados.get(id_cliente)
+
+        if not filme:
+            print(f"ERRO: Filme com ID '{id_filme}' não encontrado.")
+            return False
+        if not cliente:
+            print(f"ERRO: Cliente com ID '{id_cliente}' não encontrado.")
+            return False
+        
+        if filme['status'] != 'em breve':
+            print(f"ERRO: O filme '{filme['titulo']}' não é um lançamento futuro e não pode ser reservado.")
+            return False
+            
+        self.reservas_lancamentos_idx.setdefault(id_filme, set()).add(id_cliente)
+        print(f"SUCESSO: Reserva para '{filme['titulo']}' realizada para o cliente '{cliente['nome']}'.")
+        return True

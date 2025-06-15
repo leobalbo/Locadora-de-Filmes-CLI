@@ -1,3 +1,5 @@
+import datetime
+
 def exibir_menu_principal():
     print("\n=========== LOCADORA DE FILMES CLI ===========")
     print("--- Gerenciar Filmes ---")
@@ -7,6 +9,9 @@ def exibir_menu_principal():
     print("4. Listar filmes alugados")
     print("5. Buscar filme por ID")
     print("6. Remover filme do catálogo (por ID)")
+    print("--- Gerenciar Lançamentos ---")
+    print("7. Ver próximos lançamentos")
+    print("8. Reservar um lançamento")
     print("--- Gerenciar Clientes ---")
     print("10. Adicionar novo cliente")
     print("11. Listar todos os clientes")
@@ -29,15 +34,14 @@ def obter_detalhes_filme_usuario() -> dict | None:
     print("\n--- Adicionar Novo Filme ao Catálogo ---")
     titulo = input("Título do filme: ").strip()
     if not titulo: print("O título é obrigatório."); return None
-    try:
-        ano = int(input("Ano de lançamento: "))
-    except ValueError: print("Ano inválido."); return None
+
+    data_lancamento = obter_data_valida_usuario()
     diretor = input("Diretor: ").strip()
     generos_str = input("Gêneros (separados por vírgula): ").strip()
     generos = set(g.strip().capitalize() for g in generos_str.split(',') if g.strip()) if generos_str else set()
     atores_str = input("Atores principais (separados por vírgula): ").strip()
     atores = [a.strip() for a in atores_str.split(',') if a.strip()] if atores_str else []
-    return {"titulo": titulo, "ano": ano, "diretor": diretor, "generos": generos, "atores": atores}
+    return {"titulo": titulo, "diretor": diretor, "generos": generos, "atores": atores, "data_lancamento": data_lancamento}
 
 def obter_detalhes_cliente_usuario() -> dict | None:
     print("\n--- Adicionar Novo Cliente ---")
@@ -45,6 +49,26 @@ def obter_detalhes_cliente_usuario() -> dict | None:
     if not nome: print("Nome é obrigatório."); return None
     contato = input("Contato (telefone/email): ").strip()
     return {"nome": nome, "contato": contato}
+
+
+def obter_data_valida_usuario() -> str:
+    while True:
+        data_str = input("Data de lançamento (DD-MM-AAAA): ").strip()
+        if not data_str:
+            print("A data de lançamento é obrigatória. Tente novamente.")
+            continue
+
+        try:
+            data_obj = datetime.datetime.strptime(data_str, "%d-%m-%Y")
+            ano = data_obj.year
+
+            if not (1820 <= ano <= 2050):
+                print(f"ERRO: Ano de lançamento inválido ({ano}). O ano deve estar entre 1820 e 2050.")
+                continue
+
+            return data_str
+        except ValueError:
+            print("ERRO: Data inválida. Use o formato DD-MM-AAAA (ex: 15-06-2025).")
 
 def iniciar_interface(gerenciador):
     historico_comandos_menu = [] 
@@ -57,8 +81,9 @@ def iniciar_interface(gerenciador):
             detalhes = obter_detalhes_filme_usuario()
             if detalhes:
                 gerenciador.adicionar_filme_catalogo(
-                    detalhes["titulo"], detalhes["ano"], detalhes["diretor"],
-                    detalhes["generos"], detalhes["atores"]
+                    detalhes["titulo"], detalhes["diretor"],
+                    detalhes["generos"], detalhes["atores"], 
+                    detalhes["data_lancamento"]
                 )
         elif escolha == 2:
             gerenciador.listar_todos_os_filmes()
@@ -78,6 +103,12 @@ def iniciar_interface(gerenciador):
         elif escolha == 6:
             id_filme = input("Digite o ID do filme para remover do catálogo: ").strip()
             gerenciador.remover_filme_catalogo(id_filme)
+        elif escolha == 7:
+            gerenciador.visualizar_lancamentos_futuros()
+        elif escolha == 8:
+            id_filme = input("Digite o ID do filme de lançamento para reservar: ").strip()
+            id_cliente = input("Digite o ID do cliente que está reservando: ").strip()
+            gerenciador.reservar_lancamento(id_filme, id_cliente)
         elif escolha == 10:
             detalhes_cliente = obter_detalhes_cliente_usuario()
             if detalhes_cliente:
