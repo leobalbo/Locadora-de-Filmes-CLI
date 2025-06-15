@@ -105,6 +105,8 @@ class GerenciadorLocadora:
                 cliente_nome = cliente_alugou.get('nome', 'Desconhecido')
                 status_str += f" (Alugado por: {cliente_nome} em {filme['data_aluguel']})"
         
+            print(f"   Titulo: {filme.get('titulo', 'N/A')} ({filme.get('ano', 'N/A')})  ID: {filme.get('id')}")
+            print(f"   Ano: {filme.get('Ano', 'N/A')}")
             print(f"   Diretor: {filme.get('diretor', 'N/A')}")
             print(f"   Gêneros: {', '.join(filme.get('generos', [])) if filme.get('generos') else 'N/A'}")
             print(f"   Atores: {', '.join(filme.get('atores', [])) if filme.get('atores') else 'N/A'}")
